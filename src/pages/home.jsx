@@ -14,11 +14,17 @@ import {
   ArrowDownLeft,
   MoreHorizontal,
   QrCode,
-  Smartphone // Menambahkan icon Smartphone
+  Smartphone 
 } from 'lucide-react';
+
+// 1. TAMBAHKAN IMPORT INI
+import { CekSaldo, PembayaranModal } from './SaldoDanPembayaran'; 
 
 export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  
+  // 2. TAMBAHKAN STATE INI UNTUK MODAL PEMBAYARAN
+  const [showPembayaran, setShowPembayaran] = useState(false);
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
@@ -34,6 +40,9 @@ export default function App() {
         <div className="absolute top-[30%] right-[10%] w-[30vw] h-[30vw] rounded-full bg-purple-500/20 blur-[100px]" />
         <div className="absolute bottom-[20%] left-[20%] w-[25vw] h-[25vw] rounded-full bg-emerald-500/10 blur-[100px]" />
       </div>
+
+      {/* 3. TAMBAHKAN PEMANGGILAN MODAL PEMBAYARAN DI SINI */}
+      {showPembayaran && <PembayaranModal onClose={() => setShowPembayaran(false)} />}
 
       {/* Sidebar Overlay (Mobile) */}
       {isSidebarOpen && (
@@ -124,20 +133,9 @@ export default function App() {
             {/* Top Section: Balance & Quick Actions */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               
-              {/* Balance Card - Highlighted Glass */}
-              <div className="lg:col-span-2 bg-gradient-to-br from-indigo-600/40 to-blue-600/40 backdrop-blur-xl border border-white/20 rounded-3xl p-8 text-white shadow-[0_8px_32px_0_rgba(31,38,135,0.37)] relative overflow-hidden group">
-                {/* Internal decorative glares */}
-                <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-white/10 to-transparent opacity-50 pointer-events-none"></div>
-                <div className="absolute -top-20 -right-20 w-64 h-64 bg-white/10 rounded-full blur-3xl group-hover:bg-white/20 transition-all duration-700"></div>
-                
-                <div className="relative z-10">
-                  <p className="text-indigo-200 font-medium mb-2 flex items-center gap-2">
-                    <Wallet className="w-4 h-4" /> Total Saldo Aktif
-                  </p>
-                  <h2 className="text-4xl sm:text-5xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white to-white/70">
-                    Rp 45.250.000
-                  </h2>
-                </div>
+              {/* 4. GANTI KARTU SALDO LAMA DENGAN KOMPONEN CEKSALDO */}
+              <div className="lg:col-span-2">
+                <CekSaldo />
               </div>
 
               {/* My Cards Summary */}
@@ -176,11 +174,13 @@ export default function App() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 {[
                   { icon: ArrowRightLeft, label: 'Transfer', color: 'text-blue-400', bg: 'bg-blue-500/10' },
-                  { icon: CreditCard, label: 'Pembayaran', color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+                  // 5. TAMBAHKAN ONCLICK PADA OBJEK PEMBAYARAN
+                  { icon: CreditCard, label: 'Pembayaran', color: 'text-emerald-400', bg: 'bg-emerald-500/10', onClick: () => setShowPembayaran(true) },
                   { icon: QrCode, label: 'QRIS', color: 'text-purple-400', bg: 'bg-purple-500/10' },
-                  { icon: Smartphone, label: 'Top Up', color: 'text-orange-400', bg: 'bg-orange-500/10' }, // Mengganti Lainnya dengan Top Up
+                  { icon: Smartphone, label: 'Top Up', color: 'text-orange-400', bg: 'bg-orange-500/10' }, 
                 ].map((action, index) => (
-                  <button key={index} className="bg-white/5 backdrop-blur-md border border-white/10 p-5 rounded-2xl shadow-lg flex flex-col items-center justify-center gap-3 hover:bg-white/10 transition-all duration-300 group">
+                  // 6. TAMBAHKAN PROPERTI onClick={action.onClick} DI TOMBOL INI
+                  <button key={index} onClick={action.onClick} className="bg-white/5 backdrop-blur-md border border-white/10 p-5 rounded-2xl shadow-lg flex flex-col items-center justify-center gap-3 hover:bg-white/10 transition-all duration-300 group">
                     <div className={`p-3 rounded-xl ${action.bg} border border-white/5 group-hover:scale-110 transition-transform duration-300 shadow-inner`}>
                       <action.icon className={`w-6 h-6 ${action.color}`} />
                     </div>
