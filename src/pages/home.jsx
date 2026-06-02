@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 
 // 1. TAMBAHKAN IMPORT INI
-import { CekSaldo, PembayaranModal } from './SaldoDanPembayaran'; 
+import { CekSaldo, PembayaranModal } from './SaldoDanPembayaran.jsx';
 
 export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
