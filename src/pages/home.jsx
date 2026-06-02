@@ -7,12 +7,10 @@ import {
   ArrowRightLeft, 
   Clock, 
   Settings, 
-  User,
   LogOut,
   Wallet,
   ArrowUpRight,
   ArrowDownLeft,
-  MoreHorizontal,
   QrCode,
   Smartphone 
 } from 'lucide-react';
