@@ -7,9 +7,16 @@ import {
 import QRISModal from './QRISModal';
 
 // ── Main App ─────────────────────────────────────────────────────────────────
-export default function App() {
+export default function HomePage({ onLogout }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showQRIS, setShowQRIS]           = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSpinning, setIsSpinning] = useState(false);
+  const handleCollapse = () => {
+  setIsSpinning(true);
+  setTimeout(() => setIsSpinning(false), 350);
+  setIsSidebarCollapsed(prev => !prev);
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex font-sans relative overflow-hidden selection:bg-indigo-500/30">
@@ -31,32 +38,53 @@ export default function App() {
       )}
 
       {/* Sidebar */}
-      <aside className={`fixed lg:static inset-y-0 left-0 w-64 bg-white/5 backdrop-blur-xl border-r border-white/10 z-50 transform transition-transform duration-300 ease-in-out shadow-2xl ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} flex flex-col`}>
-        <div className="h-16 flex items-center px-6 border-b border-white/10">
-          <div className="flex items-center gap-2 text-white">
-            <Wallet className="w-8 h-8 text-indigo-400" />
-            <span className="text-xl font-bold tracking-wide">NeoBank</span>
+      <aside className={`fixed lg:static inset-y-0 left-0 bg-white/5 backdrop-blur-xl border-r border-white/10 z-50 transform transition-all duration-300 ease-in-out shadow-2xl overflow-visible relative flex flex-col ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'} ${isSidebarCollapsed ? 'w-0 border-r-0' : 'w-64'}`}>
+
+        {/* Konten sidebar */}
+        <div className={`w-64 flex flex-col h-full overflow-hidden transition-opacity duration-200 ${isSidebarCollapsed ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+          <div className="h-16 flex items-center px-6 border-b border-white/10">
+            <div className="flex items-center gap-2 text-white">
+              <Wallet className="w-8 h-8 text-indigo-400" />
+              <span className="text-xl font-bold tracking-wide">NeoBank</span>
+            </div>
+          </div>
+          <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+            {[
+              { icon: Home, label: 'Dashboard', active: true },
+              { icon: ArrowRightLeft, label: 'Transfer' },
+              { icon: CreditCard, label: 'Kartu' },
+              { icon: Clock, label: 'Aktivitas' },
+              { icon: Settings, label: 'Pengaturan' },
+            ].map(({ icon: Icon, label, active }) => (
+              <a key={label} href="#" className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium transition-all ${active ? 'text-white bg-white/10 border border-white/5 shadow-[0_4px_12px_rgba(0,0,0,0.1)]' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}>
+                <Icon className={`w-5 h-5 ${active ? 'text-indigo-400' : ''}`} />
+                {label}
+              </a>
+            ))}
+          </nav>
+          <div className="p-4 border-t border-white/10">
+            <button 
+              onClick={onLogout}
+              className="flex items-center gap-3 px-3 py-2.5 w-full text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl font-medium transition-all"
+            >
+              <LogOut className="w-5 h-5" /> Keluar
+            </button>
           </div>
         </div>
-        <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
-          {[
-            { icon: Home, label: 'Dashboard', active: true },
-            { icon: ArrowRightLeft, label: 'Transfer' },
-            { icon: CreditCard, label: 'Kartu' },
-            { icon: Clock, label: 'Aktivitas' },
-            { icon: Settings, label: 'Pengaturan' },
-          ].map(({ icon: Icon, label, active }) => (
-            <a key={label} href="#" className={`flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium transition-all ${active ? 'text-white bg-white/10 border border-white/5 shadow-[0_4px_12px_rgba(0,0,0,0.1)]' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}>
-              <Icon className={`w-5 h-5 ${active ? 'text-indigo-400' : ''}`} />
-              {label}
-            </a>
-          ))}
-        </nav>
-        <div className="p-4 border-t border-white/10">
-          <button className="flex items-center gap-3 px-3 py-2.5 w-full text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl font-medium transition-all">
-            <LogOut className="w-5 h-5" /> Keluar
-          </button>
-        </div>
+
+        {/* Tombol lingkaran toggle — hidden di mobile saat sidebar tertutup */}
+        <button
+          onClick={handleCollapse}
+          className="hidden lg:flex absolute -right-5 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 border-2 border-slate-950 items-center justify-center shadow-lg shadow-indigo-500/40 hover:shadow-indigo-500/60 hover:scale-110 transition-all duration-200 z-50 focus:outline-none"
+          aria-label="Toggle sidebar"
+        >
+          <svg
+            className={`w-4 h-4 text-white transition-transform duration-300 ${isSidebarCollapsed ? 'rotate-180' : 'rotate-0'} ${isSpinning ? 'animate-[spin_0.35s_ease-in-out_1]' : ''}`}
+            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
       </aside>
 
       {/* Main */}
