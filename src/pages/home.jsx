@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import TopUp from './TopUp'; // Import komponen TopUp
 import { 
   Search, 
   Menu, 
@@ -7,18 +9,51 @@ import {
   ArrowRightLeft, 
   Clock, 
   Settings, 
-  User,
   LogOut,
   Wallet,
   ArrowUpRight,
   ArrowDownLeft,
-  MoreHorizontal,
   QrCode,
-  Smartphone // Menambahkan icon Smartphone
+  Smartphone
 } from 'lucide-react';
 
 export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isTopUpOpen, setIsTopUpOpen] = useState(false);
+  
+  // 1. State untuk data dari database
+  const [balance, setBalance] = useState(0);
+  const [userName, setUserName] = useState('Memuat...'); // State untuk Nama User
+  const [transactions, setTransactions] = useState([]); // State untuk riwayat transaksi
+  const [accountNumber, setAccountNumber] = useState(''); // State untuk Nomor Rekening
+
+  // 2. Fungsi untuk mengambil data saldo, nama, dan rekening dari Backend
+  const fetchUserData = async () => {
+    try {
+      const response = await axios.get('http://127.0.0.1:8000/api/user');
+      setBalance(response.data.balance || 0);
+      setUserName(response.data.name || 'User');
+      setAccountNumber(response.data.account_number || ''); // AMBIL DARI DB
+    } catch (error) {
+      console.error("Gagal konek ke database (User):", error);
+    }
+  };
+
+  // 3. Fungsi ambil data Transaksi dari Database
+  const fetchTransactions = async () => {
+    try {
+      const response = await axios.get('http://127.0.0.1:8000/api/transactions');
+      setTransactions(response.data); // Simpan data dari database ke state
+    } catch (error) {
+      console.error("Gagal ambil transaksi:", error);
+    }
+  };
+
+  // 4. Jalankan saat Dashboard pertama kali dibuka
+  useEffect(() => { 
+    fetchUserData(); 
+    fetchTransactions();
+  }, []);
 
   const toggleSidebar = () => {
     setIsSidebarOpen(!isSidebarOpen);
@@ -99,7 +134,7 @@ export default function App() {
             >
               <Menu className="w-6 h-6" />
             </button>
-            <h1 className="text-xl font-semibold text-white hidden sm:block tracking-wide">Selamat Datang, Budi!</h1>
+            <h1 className="text-xl font-semibold text-white hidden sm:block tracking-wide">Selamat Datang, {userName}!</h1>
           </div>
 
           <div className="flex items-center gap-4">
@@ -112,7 +147,7 @@ export default function App() {
               />
             </div>
             <div className="h-9 w-9 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold cursor-pointer shadow-lg border border-white/20">
-              B
+              {userName.charAt(0).toUpperCase()}
             </div>
           </div>
         </header>
@@ -126,7 +161,6 @@ export default function App() {
               
               {/* Balance Card - Highlighted Glass */}
               <div className="lg:col-span-2 bg-gradient-to-br from-indigo-600/40 to-blue-600/40 backdrop-blur-xl border border-white/20 rounded-3xl p-8 text-white shadow-[0_8px_32px_0_rgba(31,38,135,0.37)] relative overflow-hidden group">
-                {/* Internal decorative glares */}
                 <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-white/10 to-transparent opacity-50 pointer-events-none"></div>
                 <div className="absolute -top-20 -right-20 w-64 h-64 bg-white/10 rounded-full blur-3xl group-hover:bg-white/20 transition-all duration-700"></div>
                 
@@ -135,8 +169,14 @@ export default function App() {
                     <Wallet className="w-4 h-4" /> Total Saldo Aktif
                   </p>
                   <h2 className="text-4xl sm:text-5xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white to-white/70">
-                    Rp 45.250.000
+                    Rp {Number(balance).toLocaleString('id-ID')}
                   </h2>
+                  {/* Tampilan Nomor Rekening dari DB */}
+                  {accountNumber && (
+                    <p className="text-xs text-indigo-200 mt-3 opacity-80 tracking-widest font-mono">
+                       NO. REK: {accountNumber}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -147,7 +187,6 @@ export default function App() {
                   <button className="text-indigo-400 text-sm font-medium hover:text-indigo-300 transition-colors">Lihat Semua</button>
                 </div>
                 <div className="bg-gradient-to-br from-slate-800/80 to-slate-900/80 backdrop-blur-md border border-white/10 rounded-2xl p-5 text-white relative overflow-hidden shadow-inner">
-                  {/* Mastercard style circles */}
                   <div className="absolute top-0 right-0 p-4 opacity-70">
                     <svg width="40" height="24" viewBox="0 0 40 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                       <circle cx="12" cy="12" r="12" fill="#ff5f00" fillOpacity="0.8"/>
@@ -159,7 +198,7 @@ export default function App() {
                   <div className="flex justify-between items-end">
                     <div>
                       <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Card Holder</p>
-                      <p className="text-sm font-medium">Budi Santoso</p>
+                      <p className="text-sm font-medium">{userName !== 'Memuat...' ? userName : 'Nama Pengguna'}</p>
                     </div>
                     <div>
                       <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Expires</p>
@@ -175,12 +214,16 @@ export default function App() {
               <h3 className="text-lg font-semibold text-white mb-4 tracking-wide">Layanan Cepat</h3>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 {[
-                  { icon: ArrowRightLeft, label: 'Transfer', color: 'text-blue-400', bg: 'bg-blue-500/10' },
-                  { icon: CreditCard, label: 'Pembayaran', color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-                  { icon: QrCode, label: 'QRIS', color: 'text-purple-400', bg: 'bg-purple-500/10' },
-                  { icon: Smartphone, label: 'Top Up', color: 'text-orange-400', bg: 'bg-orange-500/10' }, // Mengganti Lainnya dengan Top Up
+                  { id: 'transfer', icon: ArrowRightLeft, label: 'Transfer', color: 'text-blue-400', bg: 'bg-blue-500/10' },
+                  { id: 'pembayaran', icon: CreditCard, label: 'Pembayaran', color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+                  { id: 'qris', icon: QrCode, label: 'QRIS', color: 'text-purple-400', bg: 'bg-purple-500/10' },
+                  { id: 'topup', icon: Smartphone, label: 'Top Up', color: 'text-orange-400', bg: 'bg-orange-500/10' },
                 ].map((action, index) => (
-                  <button key={index} className="bg-white/5 backdrop-blur-md border border-white/10 p-5 rounded-2xl shadow-lg flex flex-col items-center justify-center gap-3 hover:bg-white/10 transition-all duration-300 group">
+                  <button 
+                    key={index} 
+                    onClick={() => action.id === 'topup' ? setIsTopUpOpen(true) : null}
+                    className="bg-white/5 backdrop-blur-md border border-white/10 p-5 rounded-2xl shadow-lg flex flex-col items-center justify-center gap-3 hover:bg-white/10 transition-all duration-300 group"
+                  >
                     <div className={`p-3 rounded-xl ${action.bg} border border-white/5 group-hover:scale-110 transition-transform duration-300 shadow-inner`}>
                       <action.icon className={`w-6 h-6 ${action.color}`} />
                     </div>
@@ -190,51 +233,65 @@ export default function App() {
               </div>
             </div>
 
-            {/* Recent Activity */}
+            {/* AKTIVITAS TERAKHIR DINAMIS DARI DATABASE */}
             <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-3xl shadow-xl overflow-hidden">
               <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/[0.02]">
                 <h3 className="text-lg font-semibold text-white tracking-wide">Aktivitas Terakhir</h3>
                 <button className="text-indigo-400 text-sm font-medium hover:text-indigo-300 transition-colors">Lihat Semua</button>
               </div>
+              
               <div className="divide-y divide-white/5">
-                {[
-                  { title: 'Transfer ke Andi', type: 'out', amount: '-Rp 250.000', date: 'Hari ini, 14:30', icon: ArrowUpRight, iconColor: 'text-red-400', iconBg: 'bg-red-500/10' },
-                  { title: 'Gaji Masuk', type: 'in', amount: '+Rp 8.500.000', date: 'Kemarin, 09:00', icon: ArrowDownLeft, iconColor: 'text-emerald-400', iconBg: 'bg-emerald-500/10' },
-                  { title: 'Pembayaran PLN', type: 'out', amount: '-Rp 350.000', date: '20 Mei, 18:45', icon: ArrowUpRight, iconColor: 'text-red-400', iconBg: 'bg-red-500/10' },
-                  { title: 'Top Up Gopay', type: 'out', amount: '-Rp 100.000', date: '19 Mei, 12:15', icon: ArrowUpRight, iconColor: 'text-red-400', iconBg: 'bg-red-500/10' },
-                ].map((tx, index) => (
-                  <div key={index} className="p-4 sm:p-6 flex items-center justify-between hover:bg-white/5 transition-colors cursor-pointer group">
-                    <div className="flex items-center gap-4">
-                      <div className={`p-3 rounded-xl ${tx.iconBg} border border-white/5 group-hover:scale-105 transition-transform`}>
-                        <tx.icon className={`w-5 h-5 ${tx.iconColor}`} />
+                {transactions.length > 0 ? (
+                  transactions.map((tx, index) => (
+                    <div key={index} className="p-4 sm:p-6 flex items-center justify-between hover:bg-white/5 transition-colors group">
+                      <div className="flex items-center gap-4">
+                        <div className="p-3 rounded-xl bg-red-500/10 border border-white/5 group-hover:scale-105 transition-transform">
+                          <ArrowUpRight className="w-5 h-5 text-red-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-slate-200 group-hover:text-white transition-colors">
+                            Top Up {tx.wallet_type || 'DANA'}
+                          </p>
+                          <p className="text-sm text-slate-400">
+                            {new Date(tx.created_at).toLocaleDateString('id-ID')}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-slate-200 group-hover:text-white transition-colors">{tx.title}</p>
-                        <p className="text-sm text-slate-400">{tx.date}</p>
+                      <div className="font-semibold tracking-wide text-red-400">
+                        -Rp {Number(tx.amount).toLocaleString('id-ID')}
                       </div>
                     </div>
-                    <div className={`font-semibold tracking-wide ${tx.type === 'in' ? 'text-emerald-400' : 'text-slate-200'}`}>
-                      {tx.amount}
-                    </div>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="p-6 text-center text-slate-500 text-sm italic">Belum ada transaksi.</p>
+                )}
               </div>
-            </div>
-
-            {/* Future Features Placeholder */}
-            <div className="bg-indigo-900/20 backdrop-blur-md border border-indigo-500/20 rounded-3xl p-8 flex flex-col items-center justify-center text-center shadow-lg">
-              <div className="p-4 bg-indigo-500/20 border border-indigo-500/30 text-indigo-300 rounded-2xl mb-4 shadow-inner">
-                <Settings className="w-6 h-6 animate-[spin_4s_linear_infinite]" />
-              </div>
-              <h4 className="font-medium text-indigo-200 mb-2 text-lg tracking-wide">Area Modul Tambahan</h4>
-              <p className="text-sm text-indigo-300/70 max-w-md leading-relaxed">
-                Ruang kosong bergaya glassmorphism ini bisa digunakan untuk meletakkan komponen lain, seperti Grafik Pengeluaran Bulanan atau Promo Eksklusif Bank.
-              </p>
             </div>
 
           </div>
         </div>
       </main>
+
+      {/* POP UP MODAL TOP UP */}
+      {isTopUpOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" onClick={() => setIsTopUpOpen(false)}></div>
+          <div className="relative bg-slate-900 border border-white/10 w-full max-w-md rounded-3xl p-8 shadow-2xl">
+            
+            {/* PANGGILAN KOMPONEN TOPUP */}
+            <TopUp 
+              accountNumber={accountNumber} // OPER DATA KE TOPUP
+              onSuccess={() => {
+                fetchUserData();       // Memperbarui saldo di background dashboard
+                fetchTransactions();   // Memperbarui daftar aktivitas
+                setIsTopUpOpen(false); // Tutup modal
+              }} 
+            />
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
