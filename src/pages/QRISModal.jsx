@@ -3,6 +3,9 @@ import {
   QrCode, X, ChevronLeft, CheckCircle2, XCircle, Camera,
   AlertCircle, ShieldCheck, Zap, Copy, RefreshCw
 } from 'lucide-react';
+import { Html5Qrcode } from 'html5-qrcode';
+import QRCode from 'react-qr-code';
+import api from '../utils/api';
 
 const STEP = {
   CHOOSE_MODE: 'choose_mode',
@@ -16,13 +19,7 @@ const STEP = {
   SHOW_QR:     'show_qr',
 };
 
-const MOCK_MERCHANTS = [
-  { name: 'Warung Makan Bu Sari', category: 'Restoran', nmid: 'ID123400001234567' },
-  { name: 'Indomaret Gajah Mada', category: 'Minimarket', nmid: 'ID123400009876543' },
-  { name: 'Apotek Kimia Farma',   category: 'Apotek',    nmid: 'ID123400005678901' },
-];
-
-export default function QRISModal({ onClose }) {
+export default function QRISModal({ onClose, userData, onScanTransfer }) {
   const [step, setStep]           = useState(STEP.CHOOSE_MODE);
   const [mode, setMode]           = useState(null);
   const [merchant, setMerchant]   = useState(null);
@@ -31,6 +28,7 @@ export default function QRISModal({ onClose }) {
   const [pinError, setPinError]   = useState(false);
   const [countdown, setCountdown] = useState(5);
   const [scanProgress, setScanProgress] = useState(0);
+  const [isFrontCamera, setIsFrontCamera] = useState(false);
   const timerRef = useRef(null);
 
   const formatRp = (val) => {
@@ -44,29 +42,67 @@ export default function QRISModal({ onClose }) {
   };
 
   useEffect(() => {
+    let html5QrCode;
     if (step === STEP.SCAN) {
-      setScanProgress(0);
-      const picked = MOCK_MERCHANTS[Math.floor(Math.random() * MOCK_MERCHANTS.length)];
-      const t = setTimeout(() => setMerchant(picked), 2800);
-      const prog = setInterval(() => setScanProgress(p => Math.min(p + 4, 90)), 120);
-      return () => { clearTimeout(t); clearInterval(prog); };
+      setScanProgress(10);
+      html5QrCode = new Html5Qrcode("qris-reader");
+      
+      const onScanSuccess = (decodedText) => {
+        try {
+          const data = JSON.parse(decodedText);
+          
+          if (data.type === 'transfer' && data.nomor_kartu) {
+            html5QrCode.stop().then(() => {
+              if (onScanTransfer) onScanTransfer(data.nomor_kartu);
+            }).catch(() => {});
+            return;
+          }
+
+          if (data.merchant_name && data.amount) {
+            html5QrCode.stop().then(() => {
+              // Convert to merchant object expected by UI
+              setMerchant({
+                name: data.merchant_name,
+                category: data.category,
+                nmid: data.nmid,
+                itemName: data.item_name
+              });
+              setAmount(String(data.amount));
+              setScanProgress(100);
+              setTimeout(() => setStep(STEP.INPUT_AMOUNT), 800);
+            }).catch(() => {});
+          }
+        } catch (e) {
+          // Ignore non-JSON QR codes
+        }
+      };
+
+      html5QrCode.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 200, height: 200 } },
+        onScanSuccess
+      ).catch(err => {
+        // Fallback to laptop webcam (user)
+        setIsFrontCamera(true);
+        html5QrCode.start(
+          { facingMode: "user" },
+          { fps: 10, qrbox: { width: 200, height: 200 } },
+          onScanSuccess
+        ).catch(err2 => {
+          console.error("Gagal mengakses kamera:", err2);
+        });
+      });
     }
+
+    return () => {
+      if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().catch(() => {});
+      }
+    };
   }, [step]);
 
   useEffect(() => {
-    if (merchant && step === STEP.SCAN) {
-      setScanProgress(100);
-      setTimeout(() => setStep(STEP.INPUT_AMOUNT), 400);
-    }
-  }, [merchant]);
-
-  useEffect(() => {
-    if (step === STEP.PROCESSING) {
-      const t = setTimeout(() => {
-        setStep(Math.random() < 0.9 ? STEP.SUCCESS : STEP.FAILED);
-      }, 2200);
-      return () => clearTimeout(t);
-    }
+    // Empty useEffect instead of fake timeout
   }, [step]);
 
   useEffect(() => {
@@ -82,16 +118,23 @@ export default function QRISModal({ onClose }) {
     }
   }, [step]);
 
-  const handlePinInput = (digit) => {
+  const handlePinInput = async (digit) => {
     if (pin.length >= 6) return;
     const next = pin + digit;
     setPin(next);
     setPinError(false);
     if (next.length === 6) {
-      setTimeout(() => {
-        if (next === '123456') setStep(STEP.PROCESSING);
-        else { setPinError(true); setPin(''); }
-      }, 300);
+      setStep(STEP.PROCESSING);
+      try {
+        await api.post('/qris/pay', {
+          merchant_name: merchant.name,
+          item_name: merchant.itemName,
+          amount: total
+        });
+        setStep(STEP.SUCCESS);
+      } catch (error) {
+        setStep(STEP.FAILED);
+      }
     }
   };
 
@@ -108,8 +151,8 @@ export default function QRISModal({ onClose }) {
           <Camera className="w-6 h-6 text-indigo-400" />
         </div>
         <div>
-          <p className="font-semibold text-white">Bayar dengan QRIS</p>
-          <p className="text-sm text-slate-400 mt-0.5">Scan kode QR merchant untuk membayar</p>
+          <p className="font-semibold text-white">Scan QRIS</p>
+          <p className="text-sm text-slate-400 mt-0.5">Scan kode QR untuk bayar merchant atau transfer</p>
         </div>
       </button>
       <button onClick={() => { setMode('receive'); setStep(STEP.SHOW_QR); }} className="flex items-center gap-4 p-5 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all group text-left">
@@ -126,17 +169,24 @@ export default function QRISModal({ onClose }) {
 
   const renderScan = () => (
     <div className="flex flex-col items-center gap-5 mt-2">
-      <div className="relative w-64 h-64 rounded-2xl overflow-hidden bg-black/60 border border-white/10 flex items-center justify-center">
-        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
+      {isFrontCamera && (
+        <style>{`
+          #qris-reader video {
+            transform: scaleX(-1) !important;
+          }
+        `}</style>
+      )}
+      <div className="relative w-64 h-64 rounded-2xl overflow-hidden bg-black/60 border border-white/10 flex items-center justify-center [&_video]:object-cover [&_video]:w-full [&_video]:h-full">
+        <div id="qris-reader" className="absolute inset-0 z-10 w-full h-full"></div>
+        {/* Overlay frame custom */}
+        <div className="absolute inset-0 opacity-10 pointer-events-none z-10" style={{ backgroundImage: 'linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
         {['top-3 left-3','top-3 right-3','bottom-3 left-3','bottom-3 right-3'].map((pos, i) => (
-          <div key={i} className={`absolute ${pos} w-6 h-6 border-indigo-400`} style={{ borderTop: pos.includes('top') ? '3px solid' : 'none', borderBottom: pos.includes('bottom') ? '3px solid' : 'none', borderLeft: pos.includes('left') ? '3px solid' : 'none', borderRight: pos.includes('right') ? '3px solid' : 'none', borderColor: '#818cf8' }} />
+          <div key={i} className={`absolute ${pos} w-6 h-6 border-indigo-400 z-10 pointer-events-none`} style={{ borderTop: pos.includes('top') ? '3px solid' : 'none', borderBottom: pos.includes('bottom') ? '3px solid' : 'none', borderLeft: pos.includes('left') ? '3px solid' : 'none', borderRight: pos.includes('right') ? '3px solid' : 'none', borderColor: '#818cf8' }} />
         ))}
-        <div className="absolute left-4 right-4 h-0.5 bg-indigo-400/80" style={{ top: `${scanProgress}%`, transition: 'top 0.12s linear', boxShadow: '0 0 8px #818cf8' }} />
-        {!merchant && <div className="text-center z-10"><QrCode className="w-16 h-16 text-white/20 mx-auto mb-2" /><p className="text-xs text-white/40">Arahkan ke kode QR</p></div>}
-        {merchant && <div className="z-10 flex flex-col items-center gap-2"><CheckCircle2 className="w-12 h-12 text-emerald-400" /><p className="text-white font-medium text-sm">QR Terdeteksi</p></div>}
+        {merchant && <div className="absolute inset-0 bg-slate-900/90 z-20 flex flex-col items-center justify-center gap-2"><CheckCircle2 className="w-12 h-12 text-emerald-400" /><p className="text-white font-medium text-sm">QR Terdeteksi</p></div>}
       </div>
       <div className="w-full bg-white/5 rounded-full h-1.5 overflow-hidden"><div className="h-full bg-indigo-500 transition-all duration-200 rounded-full" style={{ width: `${scanProgress}%` }} /></div>
-      <p className="text-sm text-slate-400">{merchant ? 'Berhasil membaca kode QR…' : 'Memindai kode QRIS…'}</p>
+      <p className="text-sm text-slate-400 text-center">{merchant ? 'Berhasil membaca kode QR…' : 'Arahkan kamera laptop Anda ke gambar QR simulasi'}</p>
     </div>
   );
 
@@ -149,13 +199,14 @@ export default function QRISModal({ onClose }) {
       </div>
       <div>
         <label className="text-sm text-slate-400 mb-2 block">Jumlah Pembayaran</label>
-        <div className="relative"><span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 font-semibold">Rp</span><input type="text" inputMode="numeric" placeholder="0" value={formatRp(amount)} onChange={handleAmountChange} className="w-full pl-12 pr-4 py-4 bg-white/5 border border-white/10 rounded-xl text-white text-xl font-bold placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-white/30 transition-all" /></div>
-        <div className="flex gap-2 mt-3 flex-wrap">
-          {[10000, 25000, 50000, 100000].map(v => (<button key={v} onClick={() => setAmount(String(v))} className="text-xs px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg text-slate-300 hover:bg-white/10 hover:text-white transition-all">{v.toLocaleString('id-ID')}</button>))}
+        <div className="relative">
+          <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 font-semibold">Rp</span>
+          <input type="text" inputMode="numeric" placeholder="0" value={formatRp(amount)} onChange={handleAmountChange} disabled={merchant?.itemName ? true : false} className={`w-full pl-12 pr-4 py-4 bg-white/5 border border-white/10 rounded-xl text-white text-xl font-bold placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all ${merchant?.itemName ? 'opacity-70 cursor-not-allowed' : ''}`} />
         </div>
       </div>
       {amountNum > 0 && (
         <div className="bg-white/[0.03] border border-white/5 rounded-xl p-4 space-y-2 text-sm">
+          {merchant?.itemName && <div className="flex justify-between text-slate-400 border-b border-white/5 pb-2 mb-2"><span>Barang</span><span className="text-white font-medium">{merchant.itemName}</span></div>}
           <div className="flex justify-between text-slate-400"><span>Nominal</span><span>Rp {amountNum.toLocaleString('id-ID')}</span></div>
           <div className="flex justify-between text-slate-400"><span>Biaya Layanan</span><span>Rp {fee.toLocaleString('id-ID')}</span></div>
           <div className="flex justify-between font-semibold text-white border-t border-white/10 pt-2 mt-2"><span>Total Bayar</span><span>Rp {total.toLocaleString('id-ID')}</span></div>
@@ -171,6 +222,7 @@ export default function QRISModal({ onClose }) {
       <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
         <div className="p-5 border-b border-white/10 flex items-center gap-4"><div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-bold shadow-lg">{merchant?.name[0]}</div><div><p className="font-semibold text-white text-sm">{merchant?.name}</p><p className="text-xs text-slate-400">{merchant?.category}</p></div></div>
         <div className="p-5 space-y-3 text-sm">
+          {merchant?.itemName && <div className="flex justify-between"><span className="text-slate-400">Barang</span><span className="text-slate-200 font-medium">{merchant.itemName}</span></div>}
           {[ ['Nominal', `Rp ${amountNum.toLocaleString('id-ID')}`], ['Biaya Layanan', `Rp ${fee.toLocaleString('id-ID')}`], ['Metode', 'Saldo NeoBank'], ['Tanggal', new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })], ].map(([k, v]) => (
             <div key={k} className="flex justify-between"><span className="text-slate-400">{k}</span><span className="text-slate-200 font-medium">{v}</span></div>
           ))}
@@ -239,28 +291,28 @@ export default function QRISModal({ onClose }) {
     </div>
   );
 
-  const renderShowQR = () => (
-    <div className="flex flex-col items-center gap-5 mt-2">
-      <p className="text-sm text-slate-400 text-center">Tunjukkan kode QR ini ke kasir atau teman kamu</p>
-      <div className="bg-white p-5 rounded-2xl shadow-xl">
-        <svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="10" y="10" width="50" height="50" rx="3" fill="#1e1b4b"/><rect x="18" y="18" width="34" height="34" rx="2" fill="white"/><rect x="24" y="24" width="22" height="22" rx="1" fill="#1e1b4b"/>
-          <rect x="120" y="10" width="50" height="50" rx="3" fill="#1e1b4b"/><rect x="128" y="18" width="34" height="34" rx="2" fill="white"/><rect x="134" y="24" width="22" height="22" rx="1" fill="#1e1b4b"/>
-          <rect x="10" y="120" width="50" height="50" rx="3" fill="#1e1b4b"/><rect x="18" y="128" width="34" height="34" rx="2" fill="white"/><rect x="24" y="134" width="22" height="22" rx="1" fill="#1e1b4b"/>
-          {[0,1,2,3,4,5,6].map(i => i%2===0 && (<rect key={i} x={70+i*7} y="68" width="6" height="6" fill="#1e1b4b"/>))}
-          {[0,1,2,3,4,5,6].map(i => i%2===0 && (<rect key={i} x="68" y={70+i*7} width="6" height="6" fill="#1e1b4b"/>))}
-          {[ [77,80],[84,80],[91,80],[105,80],[112,80],[119,80],[77,87],[98,87],[112,87],[126,87], [133,87],[140,87],[77,94],[91,94],[105,94],[119,94],[133,94],[84,101],[98,101],[112,101], [126,101],[140,101],[77,108],[91,108],[105,108],[112,108],[133,108],[140,108],[77,115], [84,115],[98,115],[119,115],[77,122],[98,122],[105,122],[112,122],[126,122],[133,122], [77,129],[84,129],[91,129],[112,129],[119,129],[140,129],[77,136],[98,136],[119,136], [126,136],[133,136],[77,143],[84,143],[91,143],[98,143],[105,143],[126,143],[77,150], [98,150],[105,150],[119,150],[126,150],[133,150], ].map(([x,y], i) => <rect key={i} x={x} y={y} width="6" height="6" fill="#1e1b4b"/>)}
-          <rect x="80" y="80" width="20" height="20" rx="3" fill="#4f46e5"/><text x="90" y="93" textAnchor="middle" fill="white" fontSize="9" fontWeight="bold">N</text>
-        </svg>
+  const renderShowQR = () => {
+    const qrData = {
+      type: 'transfer',
+      nomor_kartu: userData?.nomor_kartu || 'XXXX-XXXX-XXXX-XXXX',
+      name: userData?.fullname || 'Budi Santoso'
+    };
+
+    return (
+      <div className="flex flex-col items-center gap-5 mt-2">
+        <p className="text-sm text-slate-400 text-center">Tunjukkan kode QR ini untuk menerima transfer</p>
+        <div className="bg-white p-5 rounded-2xl shadow-xl border-4 border-indigo-500/20">
+          <QRCode value={JSON.stringify(qrData)} size={200} level="H" />
+        </div>
+        <div className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2 text-sm">
+          <div className="flex justify-between"><span className="text-slate-400">Nama</span><span className="text-white font-medium">{userData?.fullname || 'Budi Santoso'}</span></div>
+          <div className="flex justify-between"><span className="text-slate-400">Nomor Kartu</span><div className="flex items-center gap-1.5"><span className="text-white font-mono">{userData?.nomor_kartu || 'XXXX-XXXX-XXXX-XXXX'}</span><button className="text-indigo-400 hover:text-indigo-300"><Copy className="w-3.5 h-3.5" /></button></div></div>
+          <div className="flex justify-between"><span className="text-slate-400">Bank</span><span className="text-white font-semibold italic text-indigo-300">NeoBank</span></div>
+        </div>
+        <p className="text-xs text-slate-500 text-center">Pindai dari aplikasi NeoBank lain untuk langsung transfer.</p>
       </div>
-      <div className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2 text-sm">
-        <div className="flex justify-between"><span className="text-slate-400">Nama</span><span className="text-white font-medium">Budi Santoso</span></div>
-        <div className="flex justify-between"><span className="text-slate-400">Nomor Rekening</span><div className="flex items-center gap-1.5"><span className="text-white font-mono">**** 3842</span><button className="text-indigo-400 hover:text-indigo-300"><Copy className="w-3.5 h-3.5" /></button></div></div>
-        <div className="flex justify-between"><span className="text-slate-400">Bank</span><span className="text-white">NeoBank</span></div>
-      </div>
-      <p className="text-xs text-slate-500 text-center">QR berlaku sesuai standar QRIS Bank Indonesia</p>
-    </div>
-  );
+    );
+  };
 
   const stepConfig = {
     [STEP.CHOOSE_MODE]:  { title: 'QRIS',                   back: null },

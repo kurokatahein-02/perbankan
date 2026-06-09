@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Wallet, Eye, EyeOff, ArrowRight, Shield, Mail, Lock, Phone, Calendar, AlertCircle, CheckCircle2, User } from "lucide-react";
+import api from '../utils/api';
 
 const STAGES = { IDLE: "idle", LOADING: "loading", SUCCESS: "success", ERROR: "error" };
 const STEPS = { ACCOUNT: 0, PERSONAL: 1, SECURITY: 2 };
@@ -43,7 +45,36 @@ function StrengthBar({ password }) {
   );
 }
 
-export default function RegisterPage({ onNavigateLogin }) {
+const inputStyle = (hasErr) => ({
+  width: "100%", padding: "12px 14px 12px 40px",
+  background: hasErr ? "rgba(239,68,68,.05)" : "rgba(255,255,255,0.03)",
+  border: `1px solid ${hasErr ? "rgba(239,68,68,.35)" : "rgba(255,255,255,0.07)"}`,
+  borderRadius: "11px", color: "#f1f5f9",
+  fontSize: "14px", outline: "none", transition: "all .2s",
+});
+
+const IconInput = ({ icon: Icon, type = "text", placeholder, value, onChange, error, rightEl, setStage }) => (
+  <div style={{ position: "relative" }}>
+    <Icon size={15} style={{ position: "absolute", left: "13px", top: "50%", transform: "translateY(-50%)", color: error ? "#f87171" : "#334155" }} />
+    <input
+      type={type} placeholder={placeholder} value={value}
+      onClick={(e) => {
+        if (type === 'date' && e.target.showPicker) {
+          try { e.target.showPicker(); } catch (err) {}
+        }
+      }}
+      onChange={e => { 
+        onChange(e.target.value); 
+        if (setStage) setStage("idle"); 
+      }}
+      style={{ ...inputStyle(!!error), ...(rightEl ? { paddingRight: "40px" } : {}), colorScheme: 'dark' }}
+    />
+    {rightEl && <div style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)" }}>{rightEl}</div>}
+  </div>
+);
+
+export default function RegisterPage() {
+  const navigate = useNavigate();
   const [step, setStep]       = useState(STEPS.ACCOUNT);
   const [stage, setStage]     = useState(STAGES.IDLE);
   const [mounted, setMounted] = useState(false);
@@ -86,36 +117,24 @@ export default function RegisterPage({ onNavigateLogin }) {
     return Object.keys(e).length === 0;
   };
 
-  const next = () => {
+  const next = async () => {
     if (!validate()) { setStage(STAGES.ERROR); return; }
     setStage(STAGES.IDLE);
     if (step < STEPS.SECURITY) { setStep(s => s + 1); return; }
+    
     setStage(STAGES.LOADING);
-    setTimeout(() => setStage(STAGES.SUCCESS), 2000);
+    try {
+      const payload = { email, username, fullname, phone, dob, nik, password, pin };
+      const response = await api.post('/register', payload);
+      setStage(STAGES.SUCCESS);
+    } catch (error) {
+      setStage(STAGES.ERROR);
+      setErrors({ agreed: error.response?.data?.message || "Registrasi gagal, coba lagi." });
+    }
   };
 
   const isLoading = stage === STAGES.LOADING;
   const isSuccess = stage === STAGES.SUCCESS;
-
-  const inputStyle = (hasErr) => ({
-    width: "100%", padding: "12px 14px 12px 40px",
-    background: hasErr ? "rgba(239,68,68,.05)" : "rgba(255,255,255,0.03)",
-    border: `1px solid ${hasErr ? "rgba(239,68,68,.35)" : "rgba(255,255,255,0.07)"}`,
-    borderRadius: "11px", color: "#f1f5f9",
-    fontSize: "14px", outline: "none", transition: "all .2s",
-  });
-
-  const IconInput = ({ icon: Icon, type = "text", placeholder, value, onChange, error, rightEl }) => (
-    <div style={{ position: "relative" }}>
-      <Icon size={15} style={{ position: "absolute", left: "13px", top: "50%", transform: "translateY(-50%)", color: error ? "#f87171" : "#334155" }} />
-      <input
-        type={type} placeholder={placeholder} value={value}
-        onChange={e => { onChange(e.target.value); setStage(STAGES.IDLE); }}
-        style={{ ...inputStyle(!!error), ...(rightEl ? { paddingRight: "40px" } : {}) }}
-      />
-      {rightEl && <div style={{ position: "absolute", right: "12px", top: "50%", transform: "translateY(-50%)" }}>{rightEl}</div>}
-    </div>
-  );
 
   return (
     <div className="main-container">
@@ -184,7 +203,7 @@ export default function RegisterPage({ onNavigateLogin }) {
             </div>
             <h2 className="title">Pendaftaran Berhasil!</h2>
             <p className="subtitle">Selamat datang {fullname}, akun NeoBank kamu telah siap digunakan.</p>
-            <button className="cta-btn" onClick={onNavigateLogin}>Masuk Sekarang</button>
+            <button className="cta-btn" onClick={() => navigate('/login')}>Masuk Sekarang</button>
           </div>
         ) : (
           <>
@@ -199,12 +218,12 @@ export default function RegisterPage({ onNavigateLogin }) {
                 <p className="subtitle">Mulai perjalanan finansial kamu hari ini.</p>
                 <div className="field-group">
                   <span className="field-label">Email</span>
-                  <IconInput icon={Mail} type="email" placeholder="email@anda.com" value={email} onChange={setEmail} error={errors.email} />
+                  <IconInput icon={Mail} type="email" placeholder="email@anda.com" value={email} onChange={setEmail} error={errors.email} setStage={setStage} />
                   {errors.email && <span className="error-text"><AlertCircle size={12}/> {errors.email}</span>}
                 </div>
                 <div className="field-group">
                   <span className="field-label">Username</span>
-                  <IconInput icon={User} placeholder="username_anda" value={username} onChange={setUsername} error={errors.username} />
+                  <IconInput icon={User} placeholder="username_anda" value={username} onChange={setUsername} error={errors.username} setStage={setStage} />
                   {errors.username && <span className="error-text"><AlertCircle size={12}/> {errors.username}</span>}
                 </div>
               </div>
@@ -216,22 +235,22 @@ export default function RegisterPage({ onNavigateLogin }) {
                 <p className="subtitle">Lengkapi data sesuai KTP untuk verifikasi.</p>
                 <div className="field-group">
                   <span className="field-label">Nama Lengkap</span>
-                  <IconInput icon={User} placeholder="Nama sesuai identitas" value={fullname} onChange={setFullname} error={errors.fullname} />
+                  <IconInput icon={User} placeholder="Nama sesuai identitas" value={fullname} onChange={setFullname} error={errors.fullname} setStage={setStage} />
                   {errors.fullname && <span className="error-text"><AlertCircle size={12}/> {errors.fullname}</span>}
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                   <div className="field-group">
                     <span className="field-label">No. HP</span>
-                    <IconInput icon={Phone} placeholder="0812..." value={phone} onChange={setPhone} error={errors.phone} />
+                    <IconInput icon={Phone} placeholder="0812..." value={phone} onChange={setPhone} error={errors.phone} setStage={setStage} />
                   </div>
                   <div className="field-group">
                     <span className="field-label">Tgl Lahir</span>
-                    <IconInput icon={Calendar} type="date" value={dob} onChange={setDob} error={errors.dob} />
+                    <IconInput icon={Calendar} type="date" value={dob} onChange={setDob} error={errors.dob} setStage={setStage} />
                   </div>
                 </div>
                 <div className="field-group">
                   <span className="field-label">NIK KTP (16 Digit)</span>
-                  <IconInput icon={Shield} placeholder="3201..." value={nik} onChange={v => setNik(v.replace(/\D/g,"").slice(0,16))} error={errors.nik} />
+                  <IconInput icon={Shield} placeholder="3201..." value={nik} onChange={v => setNik(v.replace(/\D/g,"").slice(0,16))} error={errors.nik} setStage={setStage} />
                 </div>
               </div>
             )}
@@ -242,10 +261,17 @@ export default function RegisterPage({ onNavigateLogin }) {
                 <p className="subtitle">Lindungi akun kamu dengan enkripsi kuat.</p>
                 <div className="field-group">
                   <span className="field-label">Password</span>
-                  <IconInput icon={Lock} type={showPass ? "text" : "password"} placeholder="Min. 8 karakter" value={password} onChange={setPassword} error={errors.password} 
+                  <IconInput icon={Lock} type={showPass ? "text" : "password"} placeholder="Min. 8 karakter" value={password} onChange={setPassword} error={errors.password} setStage={setStage}
                     rightEl={<button onClick={()=>setShowPass(!showPass)} style={{background:"none",border:"none",color:"#475569"}}>{showPass?<EyeOff size={14}/>:<Eye size={14}/>}</button>}
                   />
                   <StrengthBar password={password} />
+                </div>
+                <div className="field-group">
+                  <span className="field-label">Konfirmasi Password</span>
+                  <IconInput icon={Lock} type={showConf ? "text" : "password"} placeholder="Ulangi password" value={confirm} onChange={setConfirm} error={errors.confirm} setStage={setStage}
+                    rightEl={<button onClick={()=>setShowConf(!showConf)} style={{background:"none",border:"none",color:"#475569"}}>{showConf?<EyeOff size={14}/>:<Eye size={14}/>}</button>}
+                  />
+                  {errors.confirm && <span className="error-text"><AlertCircle size={12}/> {errors.confirm}</span>}
                 </div>
                 <div className="field-group">
                   <span className="field-label">PIN Transaksi (6 Digit)</span>
@@ -256,6 +282,7 @@ export default function RegisterPage({ onNavigateLogin }) {
                   <div className={`check-box ${agreed ? 'active' : ''}`}>{agreed && <CheckCircle2 size={12} color="white"/>}</div>
                   <span style={{ fontSize: "12px", color: "#64748b" }}>Saya setuju dengan Syarat & Ketentuan NeoBank.</span>
                 </div>
+                {errors.agreed && <span className="error-text" style={{marginTop:'10px'}}><AlertCircle size={12}/> {errors.agreed}</span>}
               </div>
             )}
 
@@ -273,7 +300,7 @@ export default function RegisterPage({ onNavigateLogin }) {
               Sudah punya akun? <button 
                 onClick={(e) => {
                   e.preventDefault();
-                  if (onNavigateLogin) onNavigateLogin();
+                  navigate('/login');
                 }}
                 style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: '#818cf8', cursor: 'pointer', fontWeight: 500 }}
               >

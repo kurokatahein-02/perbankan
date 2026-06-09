@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
-import { Wallet, Eye, EyeOff, Zap, Droplet, Wifi, Smartphone, CheckCircle, X } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Wallet, Eye, EyeOff, Zap, Droplet, Wifi, Smartphone, CheckCircle, X, Loader2, Download, CheckCircle2 } from 'lucide-react';
+import { toPng } from 'html-to-image';
+import api from '../utils/api';
 
 // ── SUB-KOMPONEN 1: FITUR CEK SALDO ──────────────────────────────────────────
 export function CekSaldo() {
@@ -47,11 +49,14 @@ export function CekSaldo() {
 }
 
 // ── SUB-KOMPONEN 2: MODAL FITUR PEMBAYARAN ───────────────────────────────────
-export function PembayaranModal({ onClose }) {
-  const [step, setStep] = useState(1); // 1: Input Data, 2: Konfirmasi, 3: Sukses
+export function PembayaranModal({ onClose, onSuccess, accountNumber }) {
+  const [step, setStep] = useState(1); // 1: Input Data, 2: Konfirmasi, 3: Sukses/Struk
   const [layanan, setLayanan] = useState('pln');
   const [nomorPelanggan, setNomorPelanggan] = useState('');
   const [nominal, setNominal] = useState('100000'); // Khusus pulsa
+  const [loading, setLoading] = useState(false);
+  const [receiptData, setReceiptData] = useState(null);
+  const receiptRef = useRef(null);
 
   const daftarLayanan = [
     { id: 'pln', label: 'Listrik PLN', icon: Zap, color: 'text-yellow-400', bg: 'bg-yellow-500/10' },
@@ -64,6 +69,46 @@ export function PembayaranModal({ onClose }) {
     e.preventDefault();
     if (!nomorPelanggan) return alert('Mohon masukkan nomor pelanggan / HP');
     setStep(2);
+  };
+
+  const handlePay = async () => {
+    setLoading(true);
+    try {
+      const amountToPay = layanan === 'pulsa' ? parseInt(nominal) : 350000;
+      await api.post('/pay', {
+        service: layanan,
+        customer_id: nomorPelanggan,
+        amount: amountToPay
+      });
+
+      setReceiptData({
+        accountSource: accountNumber || 'Rekening Tidak Diketahui',
+        date: new Date().toLocaleString('id-ID'),
+        service: daftarLayanan.find(l => l.id === layanan)?.label || layanan,
+        customerId: nomorPelanggan,
+        amount: amountToPay,
+        adminFee: 0,
+        total: amountToPay
+      });
+
+      setStep(3);
+    } catch (error) {
+      alert(error.response?.data?.message || 'Pembayaran gagal');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const downloadReceipt = () => {
+    if (receiptRef.current === null) return;
+    toPng(receiptRef.current, { cacheBust: true, backgroundColor: '#ffffff' })
+      .then((dataUrl) => {
+        const link = document.createElement('a');
+        link.download = `Struk-${layanan}-${nomorPelanggan}.png`;
+        link.href = dataUrl;
+        link.click();
+      })
+      .catch((err) => console.log(err));
   };
 
   return (
@@ -141,28 +186,87 @@ export function PembayaranModal({ onClose }) {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <button onClick={() => setStep(1)} className="border border-white/10 hover:bg-white/5 text-slate-300 py-3 rounded-xl font-medium transition-all text-sm">
+                <button onClick={() => setStep(1)} disabled={loading} className="border border-white/10 hover:bg-white/5 text-slate-300 py-3 rounded-xl font-medium transition-all text-sm">
                   Kembali
                 </button>
-                <button onClick={() => setStep(3)} className="bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-medium shadow-lg shadow-emerald-600/20 transition-all text-sm">
+                <button onClick={handlePay} disabled={loading} className="bg-emerald-600 hover:bg-emerald-500 text-white py-3 rounded-xl font-medium shadow-lg shadow-emerald-600/20 transition-all text-sm flex justify-center items-center gap-2">
+                  {loading && <Loader2 className="w-4 h-4 animate-spin" />}
                   Konfirmasi & Bayar
                 </button>
               </div>
             </div>
           )}
 
-          {step === 3 && (
-            <div className="text-center py-6 space-y-4">
-              <div className="w-16 h-16 bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-2 animate-bounce">
-                <CheckCircle className="w-10 h-10" />
+          {step === 3 && receiptData && (
+            <div className="animate-in zoom-in-95 duration-500 space-y-6">
+              <div ref={receiptRef} className="bg-white text-slate-900 p-8 rounded-3xl relative overflow-hidden shadow-2xl">
+                <div className="text-center mb-8 border-b-2 border-dashed border-slate-200 pb-6">
+                  <h1 className="font-black text-3xl tracking-tighter text-indigo-900 italic">NeoBank</h1>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-widest mt-1 font-bold">Struk Konfirmasi Pembayaran</p>
+                  <div className="mt-4 inline-flex items-center gap-2 bg-emerald-100 text-emerald-700 px-4 py-1.5 rounded-full text-[10px] font-bold">
+                    <CheckCircle2 size={14} /> PEMBAYARAN BERHASIL
+                  </div>
+                </div>
+                
+                <div className="space-y-4 font-mono text-xs">
+                  <div className="flex justify-between">
+                      <span className="text-slate-500 uppercase">Nomor Rekening</span>
+                      <span className="text-slate-900 font-bold">{receiptData.accountSource}</span>
+                  </div>
+                  <div className="flex justify-between">
+                      <span className="text-slate-500 uppercase">Waktu</span>
+                      <span className="text-slate-900">{receiptData.date}</span>
+                  </div>
+
+                  <div className="h-px bg-slate-100 w-full my-2"></div>
+
+                  <div className="flex justify-between">
+                      <span className="text-slate-500 uppercase">Jenis Layanan</span>
+                      <span className="text-slate-900 font-bold uppercase">{receiptData.service}</span>
+                  </div>
+                  <div className="flex justify-between">
+                      <span className="text-slate-500 uppercase">No. Pelanggan</span>
+                      <span className="text-slate-900 font-bold">{receiptData.customerId}</span>
+                  </div>
+                  <div className="flex justify-between">
+                      <span className="text-slate-500 uppercase">Nama</span>
+                      <span className="text-slate-900 font-bold">BUDI SANTOSO</span>
+                  </div>
+                  
+                  <div className="h-px bg-slate-100 w-full my-2"></div>
+
+                  <div className="flex justify-between text-slate-500">
+                      <span>JUMLAH TAGIHAN</span>
+                      <span className="text-slate-900">Rp {Number(receiptData.amount).toLocaleString('id-ID')}</span>
+                  </div>
+                  <div className="flex justify-between text-slate-500">
+                      <span>BIAYA ADMIN</span>
+                      <span className="text-slate-900">Rp {Number(receiptData.adminFee).toLocaleString('id-ID')}</span>
+                  </div>
+
+                  <div className="bg-indigo-50 p-5 rounded-2xl mt-6 border border-indigo-100">
+                    <div className="flex justify-between items-center text-indigo-900">
+                        <span className="font-bold text-sm">TOTAL BAYAR</span>
+                        <span className="text-2xl font-black">Rp {Number(receiptData.total).toLocaleString('id-ID')}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-8 text-center opacity-50">
+                    <p className="text-[9px] font-mono leading-tight uppercase">
+                        Simpan struk ini sebagai bukti pembayaran digital yang sah.<br/>NeoBank terdaftar dan diawasi oleh OJK.
+                    </p>
+                </div>
               </div>
-              <h4 className="text-xl font-bold text-white">Pembayaran Sukses!</h4>
-              <p className="text-sm text-slate-400 max-w-xs mx-auto leading-relaxed">
-                Transaksi pembayaran <span className="capitalize font-medium text-slate-200">{layanan}</span> Anda telah berhasil diproses.
-              </p>
-              <button onClick={onClose} className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-3 rounded-xl font-medium transition-all text-sm">
-                Selesai
-              </button>
+
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={downloadReceipt} className="bg-white/10 hover:bg-white/20 text-white py-4 rounded-2xl flex items-center justify-center gap-2 border border-white/10 transition-all font-bold">
+                    <Download size={18} /> Simpan Struk
+                </button>
+                <button onClick={() => { setStep(1); if(onSuccess) onSuccess(); }} className="bg-indigo-600 hover:bg-indigo-500 text-white py-4 rounded-2xl font-black shadow-xl active:scale-95 transition-all">
+                    Selesai
+                </button>
+              </div>
             </div>
           )}
         </div>

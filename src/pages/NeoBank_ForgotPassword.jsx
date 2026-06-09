@@ -5,15 +5,19 @@ import api from '../utils/api';
 
 const STAGES = { IDLE: "idle", LOADING: "loading", SUCCESS: "success", ERROR: "error" };
 
-export default function LoginPage({ onLogin, onNavigateRegister }) {
+export default function ForgotPasswordPage() {
   const [email, setEmail]       = useState("");
+  const [nik, setNik]           = useState("");
   const [password, setPassword] = useState("");
+  const [passwordConfirmation, setPasswordConfirmation] = useState("");
+  
   const [showPass, setShowPass] = useState(false);
-  const [remember, setRemember] = useState(false);
+  const [showPassConf, setShowPassConf] = useState(false);
+  
   const [stage, setStage]       = useState(STAGES.IDLE);
   const [errMsg, setErrMsg]     = useState("");
   const [mounted, setMounted]   = useState(false);
-  const navigate = useNavigate(); // added this but we need to import it
+  const navigate = useNavigate();
 
   useEffect(() => { setTimeout(() => setMounted(true), 60); }, []);
 
@@ -21,15 +25,24 @@ export default function LoginPage({ onLogin, onNavigateRegister }) {
     setErrMsg(""); 
     setStage(STAGES.LOADING);
     
+    if (password !== passwordConfirmation) {
+      setStage(STAGES.ERROR);
+      setErrMsg("Password dan Konfirmasi Password tidak cocok.");
+      return;
+    }
+    
     try {
-      const response = await api.post('/login', { email, password });
-      localStorage.setItem('token', response.data.access_token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+      const response = await api.post('/forgot-password', { 
+        email, 
+        nik, 
+        password,
+        password_confirmation: passwordConfirmation 
+      });
       
       setStage(STAGES.SUCCESS);
       setTimeout(() => {
-        if (onLogin) onLogin();
-      }, 800);
+        navigate('/login');
+      }, 3000);
     } catch (error) {
       setStage(STAGES.ERROR);
       setErrMsg(error.response?.data?.message || "Terjadi kesalahan sistem");
@@ -192,13 +205,14 @@ export default function LoginPage({ onLogin, onNavigateRegister }) {
 
         /* ── RIGHT PANEL (FORM) ── */
         .right {
-          width: 480px; flex-shrink: 0;
+          width: 520px; flex-shrink: 0;
           display: flex; align-items: center; justify-content: center;
           background: rgba(6,8,24,0.95);
           border-left: 1px solid rgba(255,255,255,0.05);
           padding: 48px 56px;
           position: relative; z-index: 10;
           animation: fade-in .4s ease both;
+          overflow-y: auto;
         }
         .right::before {
           content: '';
@@ -259,23 +273,6 @@ export default function LoginPage({ onLogin, onNavigateRegister }) {
         }
         .eye-btn:hover { color: #64748b; }
 
-        .row-opts {
-          display: flex; align-items: center; justify-content: space-between;
-          margin-bottom: 24px;
-          animation: fade-up .45s ease .2s both;
-        }
-        .check-row { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-        .check-box {
-          width: 17px; height: 17px; border-radius: 5px;
-          border: 1.5px solid rgba(255,255,255,.12);
-          background: transparent; display: flex; align-items: center; justify-content: center;
-          transition: background .15s, border-color .15s; flex-shrink: 0;
-        }
-        .check-box.on { background: #6366f1; border-color: #6366f1; }
-        .check-label { font-size: 13px; color: #475569; }
-        .forgot { font-size: 12px; color: #6366f1; text-decoration: none; transition: color .15s; }
-        .forgot:hover { color: #a5b4fc; }
-
         .error-box {
           display: flex; align-items: center; gap: 8px;
           padding: 10px 14px; border-radius: 10px;
@@ -291,6 +288,7 @@ export default function LoginPage({ onLogin, onNavigateRegister }) {
           cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
           transition: transform .15s, box-shadow .15s, opacity .15s;
           position: relative; overflow: hidden;
+          margin-top: 24px;
           animation: fade-up .45s ease .22s both;
         }
         .cta-btn:not(:disabled):hover { transform: translateY(-2px); }
@@ -303,37 +301,10 @@ export default function LoginPage({ onLogin, onNavigateRegister }) {
           pointer-events: none;
         }
 
-        .divider {
-          display: flex; align-items: center; gap: 12px;
-          margin: 24px 0;
-          animation: fade-up .45s ease .25s both;
-        }
-        .divider-line { flex: 1; height: 1px; background: rgba(255,255,255,0.05); }
-        .divider-text { font-size: 12px; color: #1e293b; white-space: nowrap; }
-
-        .social-row { display: flex; gap: 10px; animation: fade-up .45s ease .27s both; }
-        .social-btn {
-          flex: 1; padding: 11px;
-          background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.07);
-          border-radius: 11px; color: #64748b; font-size: 13px; font-family: 'DM Sans', sans-serif;
-          cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 7px;
-          transition: background .2s, border-color .2s, color .2s;
-        }
-        .social-btn:hover { background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.13); color: #94a3b8; }
-
         .form-footer {
           margin-top: 28px; text-align: center; font-size: 13px; color: #334155;
           animation: fade-up .45s ease .3s both;
         }
-        .form-footer a { color: #818cf8; text-decoration: none; font-weight: 500; transition: color .15s; }
-        .form-footer a:hover { color: #a5b4fc; }
-
-        .trust-row {
-          display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;
-          margin-top: 32px;
-          animation: fade-up .45s ease .35s both;
-        }
-        .trust-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #1e293b; }
 
         .success-wrap {
           display: flex; flex-direction: column; align-items: center;
@@ -379,52 +350,28 @@ export default function LoginPage({ onLogin, onNavigateRegister }) {
 
             {/* Hero copy */}
             <div className="left-hero">
-              <h1>Kelola Uang<br /><span>Lebih Cerdas</span><br />Setiap Hari</h1>
-              <p>Platform perbankan digital generasi berikutnya. Transfer, investasi, dan pantau keuangan kamu dalam satu dashboard.</p>
-            </div>
-
-            {/* Stats */}
-            <div className="stat-grid">
-              {[
-                { label: "Pengguna Aktif", value: "2.4M+", delta: "↑ 18% bulan ini" },
-                { label: "Transaksi / Hari", value: "850K", delta: "↑ 24% bulan ini" },
-                { label: "Saldo Dikelola", value: "Rp 92T", delta: "↑ 31% YoY" },
-              ].map(s => (
-                <div key={s.label} className="stat-card">
-                  <div className="stat-label">{s.label}</div>
-                  <div className="stat-value">{s.value}</div>
-                  <div className="stat-delta">{s.delta}</div>
-                </div>
-              ))}
+              <h1>Pemulihan<br /><span>Akses Akun</span></h1>
+              <p>Jangan khawatir. Kami akan membantu memulihkan akses ke akun perbankan kamu dengan proses verifikasi yang aman.</p>
             </div>
           </div>
-
-          {/* Floating card */}
-          <div className="left-content" style={{ marginTop: "auto", paddingTop: "40px" }}>
-            <div className="float-card">
-              <div className="float-card-chip" />
-              <div className="float-card-num">**** **** **** 3842</div>
-              <div className="float-card-footer">
-                <div className="float-card-holder">
-                  <span>Card Holder</span>
-                  Budi Santoso
-                </div>
-                <div className="mc-circles">
-                  <div className="mc-c" />
-                  <div className="mc-c" />
+          
+          <div className="left-content" style={{ marginTop: "auto" }}>
+              <div className="stat-grid" style={{ marginTop: '0', gridTemplateColumns: '1fr' }}>
+                <div className="stat-card" style={{ maxWidth: '340px' }}>
+                  <div className="stat-label">SISTEM KEAMANAN</div>
+                  <div className="stat-value" style={{ fontSize: '16px' }}>Verifikasi Identitas Ganda</div>
+                  <div className="stat-delta" style={{ color: '#64748b', marginTop: '8px' }}>Kami membutuhkan kombinasi Email dan NIK yang terdaftar untuk memastikan keamanan akun Anda.</div>
                 </div>
               </div>
-            </div>
           </div>
 
           {/* Ticker */}
           <div className="ticker-wrap" style={{ marginTop: "24px" }}>
             <div className="ticker-inner">
               {[
-                "Transfer Instan 24/7","Bebas Biaya Admin","QRIS Terintegrasi",
-                "Investasi Reksa Dana","Asuransi Digital","Kartu Virtual Gratis",
-                "Transfer Instan 24/7","Bebas Biaya Admin","QRIS Terintegrasi",
-                "Investasi Reksa Dana","Asuransi Digital","Kartu Virtual Gratis",
+                "Sistem Keamanan Berlapis","Verifikasi Real-time","Enkripsi End-to-End",
+                "Sistem Keamanan Berlapis","Verifikasi Real-time","Enkripsi End-to-End",
+                "Sistem Keamanan Berlapis","Verifikasi Real-time","Enkripsi End-to-End",
               ].map((t, i) => (
                 <span key={i} className="ticker-item">
                   <span className="ticker-dot" />
@@ -451,24 +398,24 @@ export default function LoginPage({ onLogin, onNavigateRegister }) {
                 </div>
                 <div style={{ textAlign: "center" }}>
                   <p style={{ fontFamily: "'Syne',sans-serif", fontWeight: 700, fontSize: "20px", color: "#f1f5f9", marginBottom: "6px" }}>
-                    Login Berhasil!
+                    Password Diperbarui!
                   </p>
-                  <p style={{ fontSize: "14px", color: "#475569" }}>Mengarahkan ke dashboard kamu…</p>
+                  <p style={{ fontSize: "14px", color: "#475569" }}>Mengarahkan ke halaman Login…</p>
                 </div>
               </div>
             ) : (
               <>
                 <div className="form-eyebrow">
-                  <Shield size={10} />
-                  Aman & Terenkripsi SSL
+                  <Lock size={10} />
+                  Pemulihan Kata Sandi
                 </div>
 
-                <h2 className="form-title">Masuk ke Akun</h2>
-                <p className="form-sub">Halo! Masukkan kredensial kamu untuk melanjutkan.</p>
+                <h2 className="form-title">Lupa Password?</h2>
+                <p className="form-sub">Masukkan Email dan NIK yang terdaftar untuk membuat password baru.</p>
 
                 {/* Email */}
                 <div className="field">
-                  <label>Alamat Email</label>
+                  <label>Alamat Email Terdaftar</label>
                   <div className="input-wrap">
                     <svg className="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
@@ -480,16 +427,38 @@ export default function LoginPage({ onLogin, onNavigateRegister }) {
                   </div>
                 </div>
 
-                {/* Password */}
+                {/* NIK */}
                 <div className="field">
-                  <label>Password</label>
+                  <label>NIK (16 Digit)</label>
+                  <div className="input-wrap">
+                    <svg className="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                      <line x1="16" y1="2" x2="16" y2="6"/>
+                      <line x1="8" y1="2" x2="8" y2="6"/>
+                      <line x1="3" y1="10" x2="21" y2="10"/>
+                      <path d="M8 14h.01"/>
+                      <path d="M12 14h.01"/>
+                      <path d="M16 14h.01"/>
+                      <path d="M8 18h.01"/>
+                      <path d="M12 18h.01"/>
+                      <path d="M16 18h.01"/>
+                    </svg>
+                    <input className="field-input" type="text" placeholder="16 Digit NIK Anda" maxLength="16"
+                      value={nik} onChange={e => { setNik(e.target.value.replace(/[^0-9]/g, '')); setStage(STAGES.IDLE); }}
+                      onKeyDown={e => e.key === "Enter" && handleSubmit()} />
+                  </div>
+                </div>
+
+                {/* New Password */}
+                <div className="field">
+                  <label>Password Baru</label>
                   <div className="input-wrap">
                     <svg className="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                       <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
                       <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                     </svg>
                     <input className="field-input" type={showPass ? "text" : "password"}
-                      placeholder="••••••••" style={{ paddingRight: "42px" }}
+                      placeholder="Minimal 8 karakter" style={{ paddingRight: "42px" }}
                       value={password} onChange={e => { setPassword(e.target.value); setStage(STAGES.IDLE); }}
                       onKeyDown={e => e.key === "Enter" && handleSubmit()} />
                     <button className="eye-btn" onClick={() => setShowPass(!showPass)}>
@@ -498,23 +467,22 @@ export default function LoginPage({ onLogin, onNavigateRegister }) {
                   </div>
                 </div>
 
-                {/* Options row */}
-                <div className="row-opts">
-                  <div className="check-row" onClick={() => setRemember(!remember)}>
-                    <div className={`check-box ${remember ? "on" : ""}`}>
-                      {remember && <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-                        <path d="M2 6 L5 9 L10 3" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>}
-                    </div>
-                    <span className="check-label">Ingat saya</span>
+                {/* Confirm New Password */}
+                <div className="field">
+                  <label>Konfirmasi Password Baru</label>
+                  <div className="input-wrap">
+                    <svg className="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                    </svg>
+                    <input className="field-input" type={showPassConf ? "text" : "password"}
+                      placeholder="Ketik ulang password baru" style={{ paddingRight: "42px" }}
+                      value={passwordConfirmation} onChange={e => { setPasswordConfirmation(e.target.value); setStage(STAGES.IDLE); }}
+                      onKeyDown={e => e.key === "Enter" && handleSubmit()} />
+                    <button className="eye-btn" onClick={() => setShowPassConf(!showPassConf)}>
+                      {showPassConf ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
                   </div>
-                  <button 
-                    className="forgot" 
-                    onClick={(e) => { e.preventDefault(); navigate('/forgot-password'); }}
-                    style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', cursor: 'pointer' }}
-                  >
-                    Lupa password?
-                  </button>
                 </div>
 
                 {/* Error */}
@@ -541,36 +509,26 @@ export default function LoginPage({ onLogin, onNavigateRegister }) {
                       <svg style={{ animation: "spin .75s linear infinite" }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                         <path d="M21 12a9 9 0 11-6.219-8.56"/>
                       </svg>
-                      Memverifikasi…
+                      Memproses…
                     </>
                   ) : (
-                    <> Masuk ke NeoBank <ArrowRight size={15} /> </>
+                    <> Reset Password <ArrowRight size={15} /> </>
                   )}
                 </button>
 
 
-
                 <div className="form-footer">
-                  Belum punya akun?{" "}
                   <button 
                     onClick={(e) => {
                       e.preventDefault();
-                      navigate('/register');
+                      navigate('/login');
                     }}
                     style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: '#818cf8', cursor: 'pointer', fontWeight: 500 }}
                   >
-                    Daftar Sekarang &rsaquo;
+                    &lsaquo; Kembali ke Login
                   </button>
                 </div>
 
-                {/* Trust badges */}
-                <div className="trust-row">
-                  {[["🏦","Terdaftar OJK"],["🔒","SSL 256-bit"],["🛡️","Jaminan LPS"]].map(([ic, tx]) => (
-                    <div key={tx} className="trust-item">
-                      <span>{ic}</span>{tx}
-                    </div>
-                  ))}
-                </div>
               </>
             )}
           </div>
